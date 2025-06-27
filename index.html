@@ -56,6 +56,7 @@
     <input type="file" id="csvFile" accept=".csv" />
     <button onclick="uploadCSV()">Upload Master Inventory CSV</button>
     <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
+    <button onclick="resetInventory()">⚠️ Reset All Inventory</button>
   </div>
 
   <div id="adminForm">
@@ -194,6 +195,13 @@
       const newRef = push(ref(db, "inventory"));
       await set(newRef, item);
       document.querySelectorAll("#adminForm input").forEach(i => i.value = "");
+    };
+
+    window.resetInventory = async function () {
+      const confirmReset = confirm("⚠️ This will permanently delete all inventory items. Continue?");
+      if (!confirmReset) return;
+      await remove(ref(db, "inventory"));
+      alert("Inventory reset complete.");
     };
 
     onValue(ref(db, "inventory"), (snapshot) => {
