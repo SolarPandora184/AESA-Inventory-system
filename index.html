@@ -38,6 +38,9 @@
     .confirmed {
       background-color: #114411;
     }
+    .verified {
+      background-color: #113366;
+    }
     #adminForm {
       background: #222;
       padding: 1rem;
@@ -111,9 +114,28 @@
       tableBody.innerHTML = "";
       Object.entries(items).forEach(([key, item]) => {
         const isMissing = !item.received || item.received < item.requested;
+        let statusText = "Missing";
+        let rowClass = "missing";
+        let actionHTML = ``;
+
+        if (item.received >= item.requested) {
+          statusText = "Complete";
+          rowClass = "confirmed";
+          if (item.verified) {
+            statusText = "Verified";
+            rowClass = "verified";
+            actionHTML = "✅ Verified";
+          } else {
+            actionHTML = `<button onclick='verifyItem("${key}")'>Verify</button>`;
+          }
+        } else {
+          actionHTML = `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> <button onclick='confirmReceived("${key}")'>Received</button>`;
+        }
+
         if (showMissingOnly && !isMissing) return;
+
         const row = document.createElement("tr");
-        row.className = isMissing ? "missing" : "confirmed";
+        row.className = rowClass;
         row.innerHTML = `
           <td>${item.itemName}</td>
           <td>${item.requested}</td>
@@ -122,10 +144,8 @@
           <td>${item.location || ""}</td>
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
-          <td>${isMissing ? "Missing" : "Complete"}</td>
-          <td>
-            ${isMissing ? `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> <button onclick='confirmReceived("${key}")'>Received</button>` : "✔️"}
-          </td>
+          <td>${statusText}</td>
+          <td>${actionHTML}</td>
         `;
         tableBody.appendChild(row);
       });
@@ -142,6 +162,12 @@
       if (isNaN(value) || value < 0) return alert("Enter a valid quantity.");
       await update(ref(db, `inventory/${key}`), {
         received: value
+      });
+    };
+
+    window.verifyItem = async function (key) {
+      await update(ref(db, `inventory/${key}`), {
+        verified: true
       });
     };
 
@@ -169,6 +195,7 @@
           itemName: row[itemNameIdx]?.trim() || `Item ${i}`,
           requested: parseInt(row[qtyIdx]) || 1,
           received: 0,
+          verified: false,
           custodian: row[custodianIdx]?.trim() || "",
           location: row[locationIdx]?.trim() || "",
           email: row[emailIdx]?.trim() || "",
@@ -186,6 +213,7 @@
         itemName: document.getElementById("itemName").value.trim(),
         requested: parseInt(document.getElementById("requested").value),
         received: 0,
+        verified: false,
         custodian: document.getElementById("custodian").value.trim(),
         location: document.getElementById("location").value.trim(),
         email: document.getElementById("email").value.trim(),
