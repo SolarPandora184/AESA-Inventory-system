@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AESA Inventory System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #eee;
+      margin: 0;
+      padding: 1rem;
+    }
+    h1 { text-align: center; }
+    form, table {
+      max-width: 900px;
+      margin: auto;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 0.5rem;
+      border: none;
+      border-radius: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2rem;
+    }
+    th, td {
+      border: 1px solid #444;
+      padding: 0.5rem;
+      text-align: left;
+    }
+    th {
+      background-color: #222;
+    }
+    button {
+      background: #2ecc71;
+      color: white;
+      border: none;
+      padding: 0.7rem 1.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>AESA Inventory System</h1>
+
+  <form id="inventoryForm">
+    <input type="text" placeholder="Item Name" id="itemName" required />
+    <input type="text" placeholder="Location" id="location" />
+    <input type="text" placeholder="Custodian Name" id="custodian" />
+    <input type="text" placeholder="Contact Info" id="contact" />
+    <select id="status">
+      <option value="Available">Available</option>
+      <option value="In Use">In Use</option>
+      <option value="Missing">Missing</option>
+      <option value="Damaged">Damaged</option>
+    </select>
+    <select id="category">
+      <option value="General">General</option>
+      <option value="Medical">Medical</option>
+      <option value="Radio">Radio</option>
+      <option value="Drone">Drone</option>
+      <option value="Tool">Tool</option>
+      <option value="PPE">PPE</option>
+    </select>
+    <textarea placeholder="Notes or Description" id="notes"></textarea>
+    <button type="submit">Add Item</button>
+  </form>
+
+  <table id="inventoryTable">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Location</th>
+        <th>Custodian</th>
+        <th>Contact</th>
+        <th>Status</th>
+        <th>Category</th>
+        <th>Notes</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Firebase SDK Modules via CDN (modular imports) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZXaf9PO6E69KNiv-yjtwFxGe8c6jyz3c",
+      authDomain: "video-call-system-140da.firebaseapp.com",
+      projectId: "video-call-system-140da",
+      storageBucket: "video-call-system-140da.firebasestorage.app",
+      messagingSenderId: "818151254357",
+      appId: "1:818151254357:web:00c81df2d11a9118ffe7dc",
+      measurementId: "G-XX57FM9DPN"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getDatabase(app);
+
+    const form = document.getElementById('inventoryForm');
+    const tableBody = document.querySelector('#inventoryTable tbody');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const item = {
+        itemName: document.getElementById('itemName').value,
+        location: document.getElementById('location').value,
+        custodian: document.getElementById('custodian').value,
+        contact: document.getElementById('contact').value,
+        status: document.getElementById('status').value,
+        category: document.getElementById('category').value,
+        notes: document.getElementById('notes').value,
+        timestamp: new Date().toLocaleString()
+      };
+
+      const newRef = push(ref(db, 'inventory'));
+      newRef.set(item);
+
+      form.reset();
+    });
+
+    // Load inventory data from Firebase
+    onValue(ref(db, 'inventory'), snapshot => {
+      tableBody.innerHTML = '';
+      snapshot.forEach(child => {
+        const item = child.val();
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${item.itemName}</td>
+          <td>${item.location}</td>
+          <td>${item.custodian}</td>
+          <td>${item.contact}</td>
+          <td>${item.status}</td>
+          <td>${item.category}</td>
+          <td>${item.notes}</td>
+          <td>${item.timestamp}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    });
+  </script>
+</body>
+</html>
