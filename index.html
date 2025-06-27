@@ -5,28 +5,67 @@
   <title>AESA Inventory System</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    /* [Same CSS as before, unchanged for brevity] */
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #eee;
+      margin: 0;
+      padding: 1rem;
+    }
+    h1 {
+      text-align: center;
+    }
+    input[type="file"], button {
+      margin: 0.5rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #444;
+      padding: 0.5rem;
+      text-align: left;
+      word-break: break-word;
+    }
+    th {
+      background-color: #222;
+    }
+    .missing {
+      background-color: #661111;
+    }
+    .confirmed {
+      background-color: #114411;
+    }
   </style>
 </head>
 <body>
   <h1>AESA Inventory System</h1>
 
-  <div id="viewToggleContainer">
-    <label><input type="radio" name="viewMode" value="live" checked /> During Event</label>
-    <label><input type="radio" name="viewMode" value="post" /> Post Event</label>
-  </div>
-
-  <div id="missingOnlyContainer">
-    <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
+  <div>
     <input type="file" id="csvFile" accept=".csv" />
-    <button onclick="uploadCSV()">Import CSV</button>
+    <button onclick="uploadCSV()">Upload Master Inventory CSV</button>
+    <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
   </div>
 
-  <!-- [Form and rest of HTML stays the same] -->
+  <table id="inventoryTable">
+    <thead>
+      <tr>
+        <th>Item Name</th>
+        <th>Qty</th>
+        <th>Custodian</th>
+        <th>Location</th>
+        <th>Returned</th>
+        <th>Confirm</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, push, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, set, push, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDZXaf9PO6E69KNiv-yjtwFxGe8c6jyz3c",
@@ -40,130 +79,76 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-
     const tableBody = document.querySelector("#inventoryTable tbody");
-    const searchInput = document.getElementById("searchInput");
-    const viewToggleInputs = document.getElementsByName("viewMode");
-    const inventoryStatus = document.getElementById("inventoryStatus");
-    let allItems = {};
-    let currentView = "live";
     let showMissingOnly = false;
+    let allItems = {};
 
-    function renderView() {
-      const items = Object.entries(allItems);
-      let dataToRender = [];
-      if (currentView === "live") {
-        dataToRender = items;
-        inventoryStatus.textContent = "Viewing: During Event - All items currently deployed";
-      } else {
-        dataToRender = items.filter(([_, item]) => !item.expendable && !item.returned);
-        inventoryStatus.textContent = `Viewing: Post Event - ${dataToRender.length} items require return confirmation.`;
-      }
-
-      if (showMissingOnly) {
-        dataToRender = dataToRender.filter(([_, item]) => !item.returned);
-        inventoryStatus.textContent += " (Missing Items Only)";
-      }
-
-      renderTable(Object.fromEntries(dataToRender));
-    }
-
-    function renderTable(data) {
+    function renderTable(items) {
       tableBody.innerHTML = "";
-      Object.entries(data).forEach(([key, item]) => {
+      Object.entries(items).forEach(([key, item]) => {
+        if (showMissingOnly && item.returned) return;
         const row = document.createElement("tr");
+        row.className = item.returned ? "confirmed" : "missing";
         row.innerHTML = `
           <td>${item.itemName}</td>
-          <td>${item.quantityExpected}</td>
-          <td>${item.location}</td>
-          <td>${item.custodian}</td>
-          <td>${item.contact}</td>
-          <td>${item.source}</td>
-          <td>${item.expendable ? "✔️" : "❌"}</td>
+          <td>${item.quantity || 1}</td>
+          <td>${item.custodian || ""}</td>
+          <td>${item.location || ""}</td>
           <td>${item.returned ? "✔️" : "❌"}</td>
-          <td>${item.status}</td>
-          <td>${item.notes || ""}</td>
-          <td>${new Date(item.lastUpdated).toLocaleString()}</td>
-          <td>
-            <button onclick="editItem('${key}')">Edit</button>
-            <button onclick="confirmReturn('${key}')">Confirm Return</button>
-          </td>
+          <td><button onclick="confirmReturn('${key}')">Confirm Return</button></td>
         `;
         tableBody.appendChild(row);
       });
     }
 
-    function toggleMissingOnly() {
+    window.toggleMissingOnly = function () {
       showMissingOnly = !showMissingOnly;
-      renderView();
-    }
+      renderTable(allItems);
+    };
 
-    onValue(ref(db, "inventory"), (snapshot) => {
-      const data = snapshot.val() || {};
-      allItems = data;
-      renderView();
-    });
+    window.confirmReturn = async function (key) {
+      await update(ref(db, `inventory/${key}`), {
+        returned: true
+      });
+    };
 
     window.uploadCSV = async function () {
       const fileInput = document.getElementById("csvFile");
       const file = fileInput.files[0];
       if (!file) return alert("Please select a CSV file.");
+
+      // Clear old data first
+      await remove(ref(db, "inventory"));
+
       const text = await file.text();
       const rows = text.trim().split("\n").map(r => r.split(","));
-      const header = rows[0];
-      const itemNameIdx = header.findIndex(h => /item/i.test(h));
-      const qtyIdx = header.findIndex(h => /qty|quantity/i.test(h));
-      const custodianIdx = header.findIndex(h => /who needs|custodian/i.test(h));
-      const sourceIdx = header.findIndex(h => /source|supplier/i.test(h));
+      const header = rows[0].map(h => h.trim().toLowerCase());
+
+      const itemNameIdx = header.findIndex(h => h.includes("item"));
+      const qtyIdx = header.findIndex(h => h.includes("quantity"));
+      const custodianIdx = header.findIndex(h => h.includes("who needs") || h.includes("custodian"));
+      const locationIdx = header.findIndex(h => h.includes("location"));
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const item = {
           itemName: row[itemNameIdx]?.trim() || `Item ${i}`,
-          quantityExpected: parseInt(row[qtyIdx]) || 1,
-          location: "",
+          quantity: parseInt(row[qtyIdx]) || 1,
           custodian: row[custodianIdx]?.trim() || "",
-          contact: "",
-          source: row[sourceIdx]?.trim() || "",
-          notes: "Imported from CSV",
-          expendable: false,
-          returned: false,
-          status: "Imported",
-          lastUpdated: new Date().toISOString(),
+          location: row[locationIdx]?.trim() || "",
+          returned: false
         };
         const newRef = push(ref(db, "inventory"));
         await set(newRef, item);
       }
 
-      alert("CSV Imported. Refreshing...");
-      onValue(ref(db, "inventory"), (snapshot) => {
-        const data = snapshot.val() || {};
-        allItems = data;
-        renderView();
-      }, { onlyOnce: true });
+      alert("Master sheet imported successfully.");
     };
 
-    window.editItem = function (key) {
-      const item = allItems[key];
-      document.getElementById("itemName").value = item.itemName;
-      document.getElementById("quantityExpected").value = item.quantityExpected;
-      document.getElementById("location").value = item.location;
-      document.getElementById("custodian").value = item.custodian;
-      document.getElementById("contact").value = item.contact;
-      document.getElementById("source").value = item.source;
-      document.getElementById("notes").value = item.notes;
-      document.getElementById("expendable").checked = item.expendable;
-      document.getElementById("returned").checked = item.returned;
-      document.getElementById("editKey").value = key;
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    };
-
-    window.confirmReturn = async function (key) {
-      await update(ref(db, `inventory/${key}`), {
-        returned: true,
-        lastUpdated: new Date().toISOString()
-      });
-    };
+    onValue(ref(db, "inventory"), (snapshot) => {
+      allItems = snapshot.val() || {};
+      renderTable(allItems);
+    });
   </script>
 </body>
 </html>
