@@ -15,7 +15,7 @@
     h1 {
       text-align: center;
     }
-    input[type="file"], button {
+    input, button {
       margin: 0.5rem;
     }
     table {
@@ -38,6 +38,15 @@
     .confirmed {
       background-color: #114411;
     }
+    #adminForm {
+      background: #222;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 8px;
+    }
+    #adminForm input {
+      margin: 0.3rem;
+    }
   </style>
 </head>
 <body>
@@ -49,13 +58,24 @@
     <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
   </div>
 
+  <div id="adminForm">
+    <h2>Add Item Manually</h2>
+    <input type="text" id="itemName" placeholder="Item Name" required />
+    <input type="number" id="requested" placeholder="Requested Qty" required />
+    <input type="text" id="custodian" placeholder="Custodian (Who Needs It)" />
+    <input type="text" id="location" placeholder="Location" />
+    <input type="email" id="email" placeholder="Email" />
+    <input type="text" id="phone" placeholder="Phone" />
+    <button onclick="addManualItem()">Add Item</button>
+  </div>
+
   <table id="inventoryTable">
     <thead>
       <tr>
         <th>Item Name</th>
         <th>Requested</th>
         <th>Received</th>
-        <th>Custodian (Who Needs It)</th>
+        <th>Custodian</th>
         <th>Location</th>
         <th>Email</th>
         <th>Phone</th>
@@ -158,6 +178,22 @@
       }
 
       alert("Master sheet imported successfully.");
+    };
+
+    window.addManualItem = async function () {
+      const item = {
+        itemName: document.getElementById("itemName").value.trim(),
+        requested: parseInt(document.getElementById("requested").value),
+        received: 0,
+        custodian: document.getElementById("custodian").value.trim(),
+        location: document.getElementById("location").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        phone: document.getElementById("phone").value.trim()
+      };
+      if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
+      const newRef = push(ref(db, "inventory"));
+      await set(newRef, item);
+      document.querySelectorAll("#adminForm input").forEach(i => i.value = "");
     };
 
     onValue(ref(db, "inventory"), (snapshot) => {
