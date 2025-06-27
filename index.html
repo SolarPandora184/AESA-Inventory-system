@@ -18,7 +18,8 @@
     form,
     table,
     #searchContainer,
-    #viewToggleContainer {
+    #viewToggleContainer,
+    #exportContainer {
       max-width: 900px;
       margin: auto;
     }
@@ -68,6 +69,13 @@
     .edit-button {
       background-color: #3498db;
     }
+    .confirm-button {
+      background-color: #f39c12;
+    }
+    .export-button {
+      background-color: #9b59b6;
+      margin-top: 0.5rem;
+    }
     #viewToggleContainer {
       margin-top: 1rem;
       display: flex;
@@ -98,6 +106,7 @@
     <input type="text" id="source" placeholder="Source (where it came from)" required />
     <textarea id="notes" placeholder="Notes (optional)"></textarea>
     <label><input type="checkbox" id="expendable" /> Expendable</label>
+    <label><input type="checkbox" id="returned" /> Returned</label>
     <button type="submit">Save Item</button>
   </form>
 
@@ -106,6 +115,10 @@
   </div>
 
   <div id="inventoryStatus"></div>
+
+  <div id="exportContainer">
+    <button class="export-button" onclick="exportCSV()">Export CSV</button>
+  </div>
 
   <table id="inventoryTable">
     <thead>
@@ -117,6 +130,7 @@
         <th>Contact</th>
         <th>Source</th>
         <th>Expendable</th>
+        <th>Returned</th>
         <th>Status</th>
         <th>Notes</th>
         <th>Last Updated</th>
@@ -165,13 +179,13 @@
         source: document.getElementById("source").value.trim(),
         notes: document.getElementById("notes").value.trim(),
         expendable: document.getElementById("expendable").checked,
+        returned: document.getElementById("returned").checked,
         status: "Verified",
         lastUpdated: new Date().toISOString()
       };
 
       if (editKey.value) {
-        const key = editKey.value;
-        await update(ref(db, `inventory/${key}`), item);
+        await update(ref(db, `inventory/${editKey.value}`), item);
         editKey.value = "";
       } else {
         const newRef = push(ref(db, "inventory"));
@@ -197,12 +211,11 @@
 
     function renderView() {
       const items = Object.entries(allItems);
-
       if (currentView === "live") {
         renderTable(Object.fromEntries(items));
         inventoryStatus.textContent = "Viewing: During Event - All items currently deployed";
       } else {
-        const missing = items.filter(([_, item]) => !item.expendable && (!item.location || !item.custodian));
+        const missing = items.filter(([_, item]) => !item.expendable && !item.returned);
         inventoryStatus.textContent = `Viewing: Post Event - ${missing.length} items require return confirmation.`;
         renderTable(Object.fromEntries(missing));
       }
@@ -220,10 +233,14 @@
           <td>${item.contact}</td>
           <td>${item.source}</td>
           <td>${item.expendable ? "✔️" : "❌"}</td>
+          <td>${item.returned ? "✔️" : "❌"}</td>
           <td>${item.status}</td>
           <td>${item.notes || ""}</td>
           <td>${new Date(item.lastUpdated).toLocaleString()}</td>
-          <td><button class="edit-button" onclick="editItem('${key}')">Edit</button></td>
+          <td>
+            <button class="edit-button" onclick="editItem('${key}')">Edit</button>
+            <button class="confirm-button" onclick="confirmReturn('${key}')">Confirm Return</button>
+          </td>
         `;
         tableBody.appendChild(row);
       });
@@ -239,8 +256,29 @@
       document.getElementById("source").value = item.source;
       document.getElementById("notes").value = item.notes;
       document.getElementById("expendable").checked = item.expendable;
+      document.getElementById("returned").checked = item.returned;
       document.getElementById("editKey").value = key;
       window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.confirmReturn = async function (key) {
+      await update(ref(db, `inventory/${key}`), {
+        returned: true,
+        lastUpdated: new Date().toISOString()
+      });
+    };
+
+    window.exportCSV = function () {
+      let csv = 'Item,Qty,Location,Custodian,Contact,Source,Expendable,Returned,Status,Notes,Last Updated\n';
+      for (const key in allItems) {
+        const item = allItems[key];
+        csv += `${item.itemName},${item.quantityExpected},${item.location},${item.custodian},${item.contact},${item.source},${item.expendable},${item.returned},${item.status},${item.notes},${item.lastUpdated}\n`;
+      }
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'aesa_inventory_export.csv';
+      a.click();
     };
 
     searchInput.addEventListener("input", () => {
