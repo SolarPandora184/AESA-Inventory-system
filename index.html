@@ -16,9 +16,13 @@
       text-align: center;
     }
     form,
-    table {
+    table,
+    #searchContainer {
       max-width: 900px;
       margin: auto;
+    }
+    #searchContainer {
+      margin: 1rem 0;
     }
     input,
     select,
@@ -28,17 +32,28 @@
       margin-bottom: 0.5rem;
       border: none;
       border-radius: 5px;
+      box-sizing: border-box;
+    }
+    input[type="checkbox"] {
+      width: auto;
+      margin-right: 0.5rem;
+    }
+    label {
+      display: inline-block;
+      margin-bottom: 0.5rem;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 2rem;
+      margin-top: 0.5rem;
     }
     th,
     td {
       border: 1px solid #444;
       padding: 0.5rem;
       text-align: left;
+      vertical-align: top;
+      word-break: break-word;
     }
     th {
       background-color: #222;
@@ -83,10 +98,19 @@
 
     <textarea id="notes" placeholder="Additional notes (optional)"></textarea>
 
+    <label>
+      <input type="checkbox" id="expendable" />
+      Expendable Item
+    </label>
+
     <button type="submit">Add Item</button>
   </form>
 
-  <table id="inventoryTable">
+  <div id="searchContainer">
+    <input type="text" id="searchInput" placeholder="Search inventory..." />
+  </div>
+
+  <table id="inventoryTable" aria-label="Inventory table">
     <thead>
       <tr>
         <th>Item</th>
@@ -97,6 +121,7 @@
         <th>Status</th>
         <th>Category</th>
         <th>Notes</th>
+        <th>Expendable</th>
         <th>Date</th>
       </tr>
     </thead>
@@ -135,6 +160,9 @@
 
     const form = document.getElementById("inventoryForm");
     const tableBody = document.querySelector("#inventoryTable tbody");
+    const searchInput = document.getElementById("searchInput");
+
+    let inventoryData = {};
 
     function clearForm() {
       form.reset();
@@ -148,13 +176,32 @@
       const q = query(itemsRef, orderByChild("itemName"), equalTo(name));
       const snapshot = await get(q);
       if (snapshot.exists()) {
-        // Return first match (assuming unique item names or just using first found)
         const val = snapshot.val();
         const key = Object.keys(val)[0];
         return { key, data: val[key] };
       } else {
         return null;
       }
+    }
+
+    function renderTable(dataObj) {
+      tableBody.innerHTML = "";
+      Object.values(dataObj).forEach((item) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${item.itemName}</td>
+          <td>${item.quantity}</td>
+          <td>${item.location}</td>
+          <td>${item.custodian}</td>
+          <td>${item.contact}</td>
+          <td>${item.status}</td>
+          <td>${item.category || ""}</td>
+          <td>${item.notes || ""}</td>
+          <td>${item.expendable ? "✔️" : "❌"}</td>
+          <td>${item.timestamp}</td>
+        `;
+        tableBody.appendChild(row);
+      });
     }
 
     form.addEventListener("submit", async (e) => {
@@ -168,6 +215,7 @@
       const status = document.getElementById("status").value;
       const category = document.getElementById("category").value;
       const notes = document.getElementById("notes").value.trim();
+      const expendable = document.getElementById("expendable").checked;
       const timestamp = new Date().toLocaleString();
 
       if (!itemName || !quantity || quantity < 1 || !location || !custodian || !contact) {
@@ -183,10 +231,7 @@
         );
 
         if (addMore) {
-          // Update quantity and timestamp + other fields if you want
           const newQuantity = existing.data.quantity + quantity;
-
-          // We'll update all fields except notes which we append
           let updatedNotes = existing.data.notes || "";
           if (notes) {
             updatedNotes += updatedNotes ? "\n" + notes : notes;
@@ -200,6 +245,7 @@
             status,
             category,
             notes: updatedNotes,
+            expendable,
             timestamp,
           };
 
@@ -207,12 +253,10 @@
           clearForm();
           return;
         } else {
-          // User canceled, do nothing
           return;
         }
       }
 
-      // New item, push it
       const newItem = {
         itemName,
         quantity,
@@ -222,6 +266,7 @@
         status,
         category,
         notes,
+        expendable,
         timestamp,
       };
 
@@ -230,25 +275,40 @@
       clearForm();
     });
 
-    // Listen and render table
     onValue(ref(db, "inventory"), (snapshot) => {
-      tableBody.innerHTML = "";
-      snapshot.forEach((child) => {
-        const item = child.val();
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${item.itemName}</td>
-          <td>${item.quantity}</td>
-          <td>${item.location}</td>
-          <td>${item.custodian}</td>
-          <td>${item.contact}</td>
-          <td>${item.status}</td>
-          <td>${item.category || ""}</td>
-          <td>${item.notes || ""}</td>
-          <td>${item.timestamp}</td>
-        `;
-        tableBody.appendChild(row);
-      });
+      inventoryData = snapshot.exists() ? snapshot.val() : {};
+      renderTable(inventoryData);
+    });
+
+    searchInput.addEventListener("input", () => {
+      const filter = searchInput.value.trim().toLowerCase();
+      if (!filter) {
+        renderTable(inventoryData);
+        return;
+      }
+
+      const filtered = {};
+      for (const key in inventoryData) {
+        const item = inventoryData[key];
+        const searchable = [
+          item.itemName,
+          item.location,
+          item.custodian,
+          item.contact,
+          item.status,
+          item.category,
+          item.notes,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        if (searchable.includes(filter)) {
+          filtered[key] = item;
+        }
+      }
+
+      renderTable(filtered);
     });
   </script>
 </body>
