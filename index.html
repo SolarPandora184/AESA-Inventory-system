@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>AESA Inventory System</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: sans-serif;
@@ -12,12 +12,17 @@
       margin: 0;
       padding: 1rem;
     }
-    h1 { text-align: center; }
-    form, table {
+    h1 {
+      text-align: center;
+    }
+    form,
+    table {
       max-width: 900px;
       margin: auto;
     }
-    input, select, textarea {
+    input,
+    select,
+    textarea {
       width: 100%;
       padding: 0.5rem;
       margin-bottom: 0.5rem;
@@ -29,7 +34,8 @@
       border-collapse: collapse;
       margin-top: 2rem;
     }
-    th, td {
+    th,
+    td {
       border: 1px solid #444;
       padding: 0.5rem;
       text-align: left;
@@ -49,21 +55,24 @@
   </style>
 </head>
 <body>
-
   <h1>AESA Inventory System</h1>
 
   <form id="inventoryForm">
-    <input type="text" placeholder="Item Name" id="itemName" required />
-    <input type="text" placeholder="Location" id="location" />
-    <input type="text" placeholder="Custodian Name" id="custodian" />
-    <input type="text" placeholder="Contact Info" id="contact" />
+    <input type="text" id="itemName" placeholder="Item Name" required />
+    <input type="number" id="quantity" min="1" value="1" placeholder="Quantity" required />
+    <input type="text" id="location" placeholder="Location" required />
+    <input type="text" id="custodian" placeholder="Custodian (Who Possesses It)" required />
+    <input type="text" id="contact" placeholder="Contact Info" required />
+
     <select id="status">
-      <option value="Available">Available</option>
+      <option value="Available" selected>Available</option>
       <option value="In Use">In Use</option>
       <option value="Missing">Missing</option>
       <option value="Damaged">Damaged</option>
     </select>
+
     <select id="category">
+      <option value="">-- Select Category --</option>
       <option value="General">General</option>
       <option value="Medical">Medical</option>
       <option value="Radio">Radio</option>
@@ -71,7 +80,9 @@
       <option value="Tool">Tool</option>
       <option value="PPE">PPE</option>
     </select>
-    <textarea placeholder="Notes or Description" id="notes"></textarea>
+
+    <textarea id="notes" placeholder="Additional notes (optional)"></textarea>
+
     <button type="submit">Add Item</button>
   </form>
 
@@ -79,6 +90,7 @@
     <thead>
       <tr>
         <th>Item</th>
+        <th>Qty</th>
         <th>Location</th>
         <th>Custodian</th>
         <th>Contact</th>
@@ -91,13 +103,22 @@
     <tbody></tbody>
   </table>
 
-  <!-- Firebase SDK Modules via CDN (modular imports) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
-    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import {
+      getDatabase,
+      ref,
+      push,
+      set,
+      onValue,
+      query,
+      orderByChild,
+      equalTo,
+      update,
+      get,
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDZXaf9PO6E69KNiv-yjtwFxGe8c6jyz3c",
       authDomain: "video-call-system-140da.firebaseapp.com",
@@ -105,51 +126,125 @@
       storageBucket: "video-call-system-140da.firebasestorage.app",
       messagingSenderId: "818151254357",
       appId: "1:818151254357:web:00c81df2d11a9118ffe7dc",
-      measurementId: "G-XX57FM9DPN"
+      measurementId: "G-XX57FM9DPN",
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const analytics = getAnalytics(app);
     const db = getDatabase(app);
 
-    const form = document.getElementById('inventoryForm');
-    const tableBody = document.querySelector('#inventoryTable tbody');
+    const form = document.getElementById("inventoryForm");
+    const tableBody = document.querySelector("#inventoryTable tbody");
 
-    form.addEventListener('submit', function (e) {
+    function clearForm() {
+      form.reset();
+      document.getElementById("quantity").value = "1";
+      document.getElementById("status").value = "Available";
+      document.getElementById("category").value = "";
+    }
+
+    async function findExistingItemByName(name) {
+      const itemsRef = ref(db, "inventory");
+      const q = query(itemsRef, orderByChild("itemName"), equalTo(name));
+      const snapshot = await get(q);
+      if (snapshot.exists()) {
+        // Return first match (assuming unique item names or just using first found)
+        const val = snapshot.val();
+        const key = Object.keys(val)[0];
+        return { key, data: val[key] };
+      } else {
+        return null;
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const item = {
-        itemName: document.getElementById('itemName').value,
-        location: document.getElementById('location').value,
-        custodian: document.getElementById('custodian').value,
-        contact: document.getElementById('contact').value,
-        status: document.getElementById('status').value,
-        category: document.getElementById('category').value,
-        notes: document.getElementById('notes').value,
-        timestamp: new Date().toLocaleString()
+      const itemName = document.getElementById("itemName").value.trim();
+      const quantity = parseInt(document.getElementById("quantity").value);
+      const location = document.getElementById("location").value.trim();
+      const custodian = document.getElementById("custodian").value.trim();
+      const contact = document.getElementById("contact").value.trim();
+      const status = document.getElementById("status").value;
+      const category = document.getElementById("category").value;
+      const notes = document.getElementById("notes").value.trim();
+      const timestamp = new Date().toLocaleString();
+
+      if (!itemName || !quantity || quantity < 1 || !location || !custodian || !contact) {
+        alert("Please fill all required fields with valid data.");
+        return;
+      }
+
+      const existing = await findExistingItemByName(itemName);
+
+      if (existing) {
+        const addMore = confirm(
+          `Item "${itemName}" already exists with quantity ${existing.data.quantity}.\n\nDo you want to add ${quantity} to the existing quantity?`
+        );
+
+        if (addMore) {
+          // Update quantity and timestamp + other fields if you want
+          const newQuantity = existing.data.quantity + quantity;
+
+          // We'll update all fields except notes which we append
+          let updatedNotes = existing.data.notes || "";
+          if (notes) {
+            updatedNotes += updatedNotes ? "\n" + notes : notes;
+          }
+
+          const updates = {
+            quantity: newQuantity,
+            location,
+            custodian,
+            contact,
+            status,
+            category,
+            notes: updatedNotes,
+            timestamp,
+          };
+
+          await update(ref(db, `inventory/${existing.key}`), updates);
+          clearForm();
+          return;
+        } else {
+          // User canceled, do nothing
+          return;
+        }
+      }
+
+      // New item, push it
+      const newItem = {
+        itemName,
+        quantity,
+        location,
+        custodian,
+        contact,
+        status,
+        category,
+        notes,
+        timestamp,
       };
 
-      const newRef = push(ref(db, 'inventory'));
-      newRef.set(item);
-
-      form.reset();
+      const newRef = push(ref(db, "inventory"));
+      await set(newRef, newItem);
+      clearForm();
     });
 
-    // Load inventory data from Firebase
-    onValue(ref(db, 'inventory'), snapshot => {
-      tableBody.innerHTML = '';
-      snapshot.forEach(child => {
+    // Listen and render table
+    onValue(ref(db, "inventory"), (snapshot) => {
+      tableBody.innerHTML = "";
+      snapshot.forEach((child) => {
         const item = child.val();
-        const row = document.createElement('tr');
+        const row = document.createElement("tr");
         row.innerHTML = `
           <td>${item.itemName}</td>
+          <td>${item.quantity}</td>
           <td>${item.location}</td>
           <td>${item.custodian}</td>
           <td>${item.contact}</td>
           <td>${item.status}</td>
-          <td>${item.category}</td>
-          <td>${item.notes}</td>
+          <td>${item.category || ""}</td>
+          <td>${item.notes || ""}</td>
           <td>${item.timestamp}</td>
         `;
         tableBody.appendChild(row);
