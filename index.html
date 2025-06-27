@@ -19,7 +19,8 @@
     table,
     #searchContainer,
     #viewToggleContainer,
-    #exportContainer {
+    #exportContainer,
+    #missingOnlyContainer {
       max-width: 900px;
       margin: auto;
     }
@@ -76,7 +77,7 @@
       background-color: #9b59b6;
       margin-top: 0.5rem;
     }
-    #viewToggleContainer {
+    #viewToggleContainer, #missingOnlyContainer {
       margin-top: 1rem;
       display: flex;
       justify-content: center;
@@ -94,6 +95,10 @@
   <div id="viewToggleContainer">
     <label><input type="radio" name="viewMode" value="live" checked /> During Event</label>
     <label><input type="radio" name="viewMode" value="post" /> Post Event</label>
+  </div>
+
+  <div id="missingOnlyContainer">
+    <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
   </div>
 
   <form id="inventoryForm">
@@ -166,6 +171,7 @@
 
     let allItems = {};
     let currentView = "live";
+    let showMissingOnly = false;
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -209,16 +215,28 @@
       });
     });
 
+    function toggleMissingOnly() {
+      showMissingOnly = !showMissingOnly;
+      renderView();
+    }
+
     function renderView() {
       const items = Object.entries(allItems);
+      let dataToRender = [];
       if (currentView === "live") {
-        renderTable(Object.fromEntries(items));
+        dataToRender = items;
         inventoryStatus.textContent = "Viewing: During Event - All items currently deployed";
       } else {
-        const missing = items.filter(([_, item]) => !item.expendable && !item.returned);
-        inventoryStatus.textContent = `Viewing: Post Event - ${missing.length} items require return confirmation.`;
-        renderTable(Object.fromEntries(missing));
+        dataToRender = items.filter(([_, item]) => !item.expendable && !item.returned);
+        inventoryStatus.textContent = `Viewing: Post Event - ${dataToRender.length} items require return confirmation.`;
       }
+
+      if (showMissingOnly) {
+        dataToRender = dataToRender.filter(([_, item]) => !item.returned);
+        inventoryStatus.textContent += " (Missing Items Only)";
+      }
+
+      renderTable(Object.fromEntries(dataToRender));
     }
 
     function renderTable(data) {
