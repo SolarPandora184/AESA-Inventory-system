@@ -15,7 +15,7 @@
     h1 {
       text-align: center;
     }
-    input, button {
+    input, button, select {
       margin: 0.5rem;
     }
     table {
@@ -50,7 +50,7 @@
       margin: 1rem 0;
       border-radius: 8px;
     }
-    #adminForm input {
+    #adminForm input, #adminForm select {
       margin: 0.3rem;
     }
   </style>
@@ -59,8 +59,7 @@
   <h1>AESA Inventory System</h1>
 
   <div>
-    <input type="file" id="csvFile" accept=".csv" />
-    <button onclick="uploadCSV()">Upload Master Inventory CSV</button>
+  
     <button onclick="filterStatus('missing')">Show Missing</button>
     <button onclick="filterStatus('confirmed')">Show Complete</button>
     <button onclick="filterStatus('verified')">Show Verified</button>
@@ -75,6 +74,10 @@
     <input type="text" id="location" placeholder="Location" />
     <input type="email" id="email" placeholder="Email" />
     <input type="text" id="phone" placeholder="Phone" />
+    <select id="expendable">
+      <option value="false">Non-Expendable</option>
+      <option value="true">Expendable</option>
+    </select>
     <button onclick="addManualItem()">Add Item</button>
   </div>
 
@@ -88,6 +91,7 @@
         <th>Location</th>
         <th>Email</th>
         <th>Phone</th>
+        <th>Expendable</th>
         <th>Status</th>
         <th>Action</th>
       </tr>
@@ -150,6 +154,7 @@
           <td>${item.location || ""}</td>
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
+          <td>${item.expendable ? "Yes" : "No"}</td>
           <td>${statusText}</td>
           <td>${actionHTML}</td>
         `;
@@ -194,6 +199,7 @@
       const locationIdx = header.findIndex(h => h.includes("location"));
       const emailIdx = header.findIndex(h => h.includes("email"));
       const phoneIdx = header.findIndex(h => h.includes("phone"));
+      const expendableIdx = header.findIndex(h => h.includes("expendable"));
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
@@ -206,7 +212,8 @@
           custodian: row[custodianIdx]?.trim() || "",
           location: row[locationIdx]?.trim() || "",
           email: row[emailIdx]?.trim() || "",
-          phone: row[phoneIdx]?.trim() || ""
+          phone: row[phoneIdx]?.trim() || "",
+          expendable: row[expendableIdx]?.trim().toLowerCase() === "true"
         };
         const newRef = push(ref(db, "inventory"));
         await set(newRef, item);
@@ -225,12 +232,13 @@
         custodian: document.getElementById("custodian").value.trim(),
         location: document.getElementById("location").value.trim(),
         email: document.getElementById("email").value.trim(),
-        phone: document.getElementById("phone").value.trim()
+        phone: document.getElementById("phone").value.trim(),
+        expendable: document.getElementById("expendable").value === "true"
       };
       if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
       const newRef = push(ref(db, "inventory"));
       await set(newRef, item);
-      document.querySelectorAll("#adminForm input").forEach(i => i.value = "");
+      document.querySelectorAll("#adminForm input, #adminForm select").forEach(i => i.value = "");
     };
 
     window.resetInventory = async function () {
