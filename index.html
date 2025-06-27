@@ -41,6 +41,9 @@
     .verified {
       background-color: #113366;
     }
+    .returned {
+      background-color: #225555;
+    }
     #adminForm {
       background: #222;
       padding: 1rem;
@@ -58,7 +61,9 @@
   <div>
     <input type="file" id="csvFile" accept=".csv" />
     <button onclick="uploadCSV()">Upload Master Inventory CSV</button>
-    <button onclick="toggleMissingOnly()">Toggle Missing Items Only</button>
+    <button onclick="filterStatus('missing')">Show Missing</button>
+    <button onclick="filterStatus('confirmed')">Show Complete</button>
+    <button onclick="filterStatus('verified')">Show Verified</button>
     <button onclick="resetInventory()">⚠️ Reset All Inventory</button>
   </div>
 
@@ -107,32 +112,33 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const tableBody = document.querySelector("#inventoryTable tbody");
-    let showMissingOnly = false;
+    let filterStatusValue = null;
     let allItems = {};
 
     function renderTable(items) {
       tableBody.innerHTML = "";
       Object.entries(items).forEach(([key, item]) => {
-        const isMissing = !item.received || item.received < item.requested;
         let statusText = "Missing";
         let rowClass = "missing";
         let actionHTML = ``;
 
-        if (item.received >= item.requested) {
+        if (item.returned) {
+          statusText = "Returned";
+          rowClass = "returned";
+          actionHTML = "✅ Returned";
+        } else if (item.verified) {
+          statusText = "Verified";
+          rowClass = "verified";
+          actionHTML = `<button onclick='markReturned("${key}")'>Mark Returned</button>`;
+        } else if (item.received >= item.requested) {
           statusText = "Complete";
           rowClass = "confirmed";
-          if (item.verified) {
-            statusText = "Verified";
-            rowClass = "verified";
-            actionHTML = "✅ Verified";
-          } else {
-            actionHTML = `<button onclick='verifyItem("${key}")'>Verify</button>`;
-          }
+          actionHTML = `<button onclick='verifyItem("${key}")'>Verify</button>`;
         } else {
           actionHTML = `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> <button onclick='confirmReceived("${key}")'>Received</button>`;
         }
 
-        if (showMissingOnly && !isMissing) return;
+        if (filterStatusValue && filterStatusValue !== rowClass) return;
 
         const row = document.createElement("tr");
         row.className = rowClass;
@@ -151,8 +157,8 @@
       });
     }
 
-    window.toggleMissingOnly = function () {
-      showMissingOnly = !showMissingOnly;
+    window.filterStatus = function (statusClass) {
+      filterStatusValue = filterStatusValue === statusClass ? null : statusClass;
       renderTable(allItems);
     };
 
@@ -160,15 +166,15 @@
       const input = document.getElementById(`recv-${key}`);
       const value = parseInt(input.value);
       if (isNaN(value) || value < 0) return alert("Enter a valid quantity.");
-      await update(ref(db, `inventory/${key}`), {
-        received: value
-      });
+      await update(ref(db, `inventory/${key}`), { received: value });
     };
 
     window.verifyItem = async function (key) {
-      await update(ref(db, `inventory/${key}`), {
-        verified: true
-      });
+      await update(ref(db, `inventory/${key}`), { verified: true });
+    };
+
+    window.markReturned = async function (key) {
+      await update(ref(db, `inventory/${key}`), { returned: true });
     };
 
     window.uploadCSV = async function () {
@@ -196,6 +202,7 @@
           requested: parseInt(row[qtyIdx]) || 1,
           received: 0,
           verified: false,
+          returned: false,
           custodian: row[custodianIdx]?.trim() || "",
           location: row[locationIdx]?.trim() || "",
           email: row[emailIdx]?.trim() || "",
@@ -214,6 +221,7 @@
         requested: parseInt(document.getElementById("requested").value),
         received: 0,
         verified: false,
+        returned: false,
         custodian: document.getElementById("custodian").value.trim(),
         location: document.getElementById("location").value.trim(),
         email: document.getElementById("email").value.trim(),
