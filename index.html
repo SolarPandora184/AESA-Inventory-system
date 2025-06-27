@@ -53,11 +53,14 @@
     <thead>
       <tr>
         <th>Item Name</th>
-        <th>Qty</th>
-        <th>Custodian</th>
+        <th>Requested</th>
+        <th>Received</th>
+        <th>Custodian (Who Needs It)</th>
         <th>Location</th>
-        <th>Returned</th>
-        <th>Confirm</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Status</th>
+        <th>Action</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -86,16 +89,22 @@
     function renderTable(items) {
       tableBody.innerHTML = "";
       Object.entries(items).forEach(([key, item]) => {
-        if (showMissingOnly && item.returned) return;
+        const isMissing = !item.received || item.received < item.requested;
+        if (showMissingOnly && !isMissing) return;
         const row = document.createElement("tr");
-        row.className = item.returned ? "confirmed" : "missing";
+        row.className = isMissing ? "missing" : "confirmed";
         row.innerHTML = `
           <td>${item.itemName}</td>
-          <td>${item.quantity || 1}</td>
+          <td>${item.requested}</td>
+          <td>${item.received || 0}</td>
           <td>${item.custodian || ""}</td>
           <td>${item.location || ""}</td>
-          <td>${item.returned ? "✔️" : "❌"}</td>
-          <td><button onclick="confirmReturn('${key}')">Confirm Return</button></td>
+          <td>${item.email || ""}</td>
+          <td>${item.phone || ""}</td>
+          <td>${isMissing ? "Missing" : "Complete"}</td>
+          <td>
+            ${isMissing ? `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> <button onclick='confirmReceived("${key}")'>Received</button>` : "✔️"}
+          </td>
         `;
         tableBody.appendChild(row);
       });
@@ -106,9 +115,12 @@
       renderTable(allItems);
     };
 
-    window.confirmReturn = async function (key) {
+    window.confirmReceived = async function (key) {
+      const input = document.getElementById(`recv-${key}`);
+      const value = parseInt(input.value);
+      if (isNaN(value) || value < 0) return alert("Enter a valid quantity.");
       await update(ref(db, `inventory/${key}`), {
-        returned: true
+        received: value
       });
     };
 
@@ -117,7 +129,6 @@
       const file = fileInput.files[0];
       if (!file) return alert("Please select a CSV file.");
 
-      // Clear old data first
       await remove(ref(db, "inventory"));
 
       const text = await file.text();
@@ -128,15 +139,19 @@
       const qtyIdx = header.findIndex(h => h.includes("quantity"));
       const custodianIdx = header.findIndex(h => h.includes("who needs") || h.includes("custodian"));
       const locationIdx = header.findIndex(h => h.includes("location"));
+      const emailIdx = header.findIndex(h => h.includes("email"));
+      const phoneIdx = header.findIndex(h => h.includes("phone"));
 
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const item = {
           itemName: row[itemNameIdx]?.trim() || `Item ${i}`,
-          quantity: parseInt(row[qtyIdx]) || 1,
+          requested: parseInt(row[qtyIdx]) || 1,
+          received: 0,
           custodian: row[custodianIdx]?.trim() || "",
           location: row[locationIdx]?.trim() || "",
-          returned: false
+          email: row[emailIdx]?.trim() || "",
+          phone: row[phoneIdx]?.trim() || ""
         };
         const newRef = push(ref(db, "inventory"));
         await set(newRef, item);
