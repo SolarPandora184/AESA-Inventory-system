@@ -54,10 +54,19 @@
       margin: 0.3rem;
     }
 
+    .table-container {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
     /* MOBILE MODE */
     @media (max-width: 768px) {
       #adminForm {
         display: none;
+      }
+
+      .table-container table {
+        min-width: 900px; /* Adjust as needed to fit your columns */
       }
 
       h2, input, select, button, label {
@@ -100,23 +109,25 @@
     <button onclick="addManualItem()">Add Item</button>
   </div>
 
-  <table id="inventoryTable">
-    <thead>
-      <tr>
-        <th>Item Name</th>
-        <th>Requested</th>
-        <th>Received</th>
-        <th>Custodian</th>
-        <th>Location</th>
-        <th>Email</th>
-        <th>Phone</th>
-        <th>Expendable</th>
-        <th>Status</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div class="table-container">
+    <table id="inventoryTable">
+      <thead>
+        <tr>
+          <th>Item Name</th>
+          <th>Requested</th>
+          <th>Received</th>
+          <th>Custodian</th>
+          <th>Location</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Expendable</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -246,4 +257,31 @@
         itemName: document.getElementById("itemName").value.trim(),
         requested: parseInt(document.getElementById("requested").value),
         received: 0,
-        ve
+        verified: false,
+        returned: false,
+        custodian: document.getElementById("custodian").value.trim(),
+        location: document.getElementById("location").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        phone: document.getElementById("phone").value.trim(),
+        expendable: document.getElementById("expendable").value === "true"
+      };
+      if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
+      const newRef = push(ref(db, "inventory"));
+      await set(newRef, item);
+      document.querySelectorAll("#adminForm input, #adminForm select").forEach(i => i.value = "");
+    };
+
+    window.resetInventory = async function () {
+      const confirmReset = confirm("⚠️ This will permanently delete all inventory items. Continue?");
+      if (!confirmReset) return;
+      await remove(ref(db, "inventory"));
+      alert("Inventory reset complete.");
+    };
+
+    onValue(ref(db, "inventory"), (snapshot) => {
+      allItems = snapshot.val() || {};
+      renderTable(allItems);
+    });
+  </script>
+</body>
+</html>
