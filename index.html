@@ -53,13 +53,32 @@
     #adminForm input, #adminForm select {
       margin: 0.3rem;
     }
+
+    /* MOBILE MODE */
+    @media (max-width: 768px) {
+      #adminForm {
+        display: none;
+      }
+
+      h2, input, select, button, label {
+        font-size: 1rem;
+      }
+
+      th, td {
+        font-size: 0.85rem;
+        padding: 0.4rem;
+      }
+
+      body {
+        padding: 0.5rem;
+      }
+    }
   </style>
 </head>
 <body>
   <h1>AESA Inventory System</h1>
 
   <div>
-  
     <button onclick="filterStatus('missing')">Show Missing</button>
     <button onclick="filterStatus('confirmed')">Show Complete</button>
     <button onclick="filterStatus('verified')">Show Verified</button>
@@ -227,31 +246,4 @@
         itemName: document.getElementById("itemName").value.trim(),
         requested: parseInt(document.getElementById("requested").value),
         received: 0,
-        verified: false,
-        returned: false,
-        custodian: document.getElementById("custodian").value.trim(),
-        location: document.getElementById("location").value.trim(),
-        email: document.getElementById("email").value.trim(),
-        phone: document.getElementById("phone").value.trim(),
-        expendable: document.getElementById("expendable").value === "true"
-      };
-      if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
-      const newRef = push(ref(db, "inventory"));
-      await set(newRef, item);
-      document.querySelectorAll("#adminForm input, #adminForm select").forEach(i => i.value = "");
-    };
-
-    window.resetInventory = async function () {
-      const confirmReset = confirm("⚠️ This will permanently delete all inventory items. Continue?");
-      if (!confirmReset) return;
-      await remove(ref(db, "inventory"));
-      alert("Inventory reset complete.");
-    };
-
-    onValue(ref(db, "inventory"), (snapshot) => {
-      allItems = snapshot.val() || {};
-      renderTable(allItems);
-    });
-  </script>
-</body>
-</html>
+        ve
