@@ -66,6 +66,7 @@
           <th>Email</th>
           <th>Phone</th>
           <th>Expendable</th>
+          <th>Supplier</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -92,6 +93,7 @@
       <option value="false">Non-Expendable</option>
       <option value="true">Expendable</option>
     </select>
+    <input type="text" id="supplier" placeholder="Supplier" />
     <button onclick="addManualItem()">Add Item</button>
   </div>
 
@@ -107,6 +109,7 @@
           <th>Email</th>
           <th>Phone</th>
           <th>Expendable</th>
+          <th>Supplier</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -155,8 +158,13 @@
           rowClass = "confirmed";
           actionHTML = `<button onclick='verifyItem("${key}")'>Verify</button>`;
         } else {
-          actionHTML = `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> <button onclick='confirmReceived("${key}")'>Received</button>`;
+          actionHTML = `<input type='number' min='0' id='recv-${key}' placeholder='Qty'> 
+                        <button onclick='confirmReceived("${key}")'>Received</button>`;
         }
+
+        actionHTML += ` 
+          <button onclick='editItem("${key}")'>Edit</button>
+          <button onclick='deleteItem("${key}")'>🗑️ Delete</button>`;
 
         if (filterStatusValue && filterStatusValue !== rowClass) return;
 
@@ -171,6 +179,7 @@
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
           <td>${item.expendable ? "Yes" : "No"}</td>
+          <td>${item.supplier || ""}</td>
           <td>${statusText}</td>
           <td>${actionHTML}</td>
         `;
@@ -196,6 +205,7 @@
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
           <td>${item.expendable ? "Yes" : "No"}</td>
+          <td>${item.supplier || ""}</td>
           <td>
             <button onclick='approveRequest("${key}")'>Approve</button>
             <button onclick='denyRequest("${key}")'>Deny</button>
@@ -238,6 +248,13 @@
       await update(ref(db, `inventory/${key}`), { returned: true });
     };
 
+    window.deleteItem = async function (key) {
+      const confirmed = confirm("Are you sure you want to permanently delete this item?");
+      if (confirmed) {
+        await remove(ref(db, `inventory/${key}`));
+      }
+    };
+
     window.addManualItem = async function () {
       const item = {
         itemName: document.getElementById("itemName").value.trim(),
@@ -249,7 +266,8 @@
         location: document.getElementById("location").value.trim(),
         email: document.getElementById("email").value.trim(),
         phone: document.getElementById("phone").value.trim(),
-        expendable: document.getElementById("expendable").value === "true"
+        expendable: document.getElementById("expendable").value === "true",
+        supplier: document.getElementById("supplier").value.trim()
       };
       if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
       const newRef = push(ref(db, "inventory"));
@@ -258,10 +276,33 @@
     };
 
     window.resetInventory = async function () {
-      const confirmReset = confirm("\u26a0\ufe0f This will permanently delete all inventory items. Continue?");
+      const confirmReset = confirm("⚠️ This will permanently delete all inventory items. Continue?");
       if (!confirmReset) return;
       await remove(ref(db, "inventory"));
       alert("Inventory reset complete.");
+    };
+
+    window.editItem = async function (key) {
+      const item = allItems[key];
+      if (!item) return;
+
+      const newValues = {
+        itemName: prompt("Item Name:", item.itemName),
+        requested: parseInt(prompt("Requested Quantity:", item.requested)),
+        received: parseInt(prompt("Received Quantity:", item.received || 0)),
+        custodian: prompt("Custodian:", item.custodian || ""),
+        location: prompt("Location:", item.location || ""),
+        email: prompt("Email:", item.email || ""),
+        phone: prompt("Phone:", item.phone || ""),
+        expendable: confirm("Is this item expendable? (OK for Yes, Cancel for No)"),
+        supplier: prompt("Supplier:", item.supplier || "")
+      };
+
+      if (!newValues.itemName || isNaN(newValues.requested)) {
+        return alert("Invalid item name or quantity.");
+      }
+
+      await update(ref(db, `inventory/${key}`), newValues);
     };
   </script>
 </body>
