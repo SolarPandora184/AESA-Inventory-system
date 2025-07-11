@@ -1,3 +1,4 @@
+<!-- Replace your entire HTML with this version -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,7 +67,6 @@
           <th>Email</th>
           <th>Phone</th>
           <th>Expendable</th>
-          <th>Supplier</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -85,6 +85,7 @@
     <h2>Add Item Manually</h2>
     <input type="text" id="itemName" placeholder="Item Name" required />
     <input type="number" id="requested" placeholder="Requested Qty" required />
+    <input type="number" id="onHand" placeholder="On Hand Qty" />
     <input type="text" id="custodian" placeholder="Custodian (Who Needs It)" />
     <input type="text" id="location" placeholder="Location" />
     <input type="email" id="email" placeholder="Email" />
@@ -93,7 +94,6 @@
       <option value="false">Non-Expendable</option>
       <option value="true">Expendable</option>
     </select>
-    <input type="text" id="supplier" placeholder="Supplier" />
     <button onclick="addManualItem()">Add Item</button>
   </div>
 
@@ -103,13 +103,13 @@
         <tr>
           <th>Item Name</th>
           <th>Requested</th>
+          <th>On Hand</th>
           <th>Received</th>
           <th>Custodian</th>
           <th>Location</th>
           <th>Email</th>
           <th>Phone</th>
           <th>Expendable</th>
-          <th>Supplier</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -173,13 +173,13 @@
         row.innerHTML = `
           <td>${item.itemName}</td>
           <td>${item.requested}</td>
+          <td>${item.onHand || 0}</td>
           <td>${item.received || 0}</td>
           <td>${item.custodian || ""}</td>
           <td>${item.location || ""}</td>
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
           <td>${item.expendable ? "Yes" : "No"}</td>
-          <td>${item.supplier || ""}</td>
           <td>${statusText}</td>
           <td>${actionHTML}</td>
         `;
@@ -205,7 +205,6 @@
           <td>${item.email || ""}</td>
           <td>${item.phone || ""}</td>
           <td>${item.expendable ? "Yes" : "No"}</td>
-          <td>${item.supplier || ""}</td>
           <td>
             <button onclick='approveRequest("${key}")'>Approve</button>
             <button onclick='denyRequest("${key}")'>Deny</button>
@@ -259,6 +258,7 @@
       const item = {
         itemName: document.getElementById("itemName").value.trim(),
         requested: parseInt(document.getElementById("requested").value),
+        onHand: parseInt(document.getElementById("onHand").value || "0"),
         received: 0,
         verified: false,
         returned: false,
@@ -266,8 +266,7 @@
         location: document.getElementById("location").value.trim(),
         email: document.getElementById("email").value.trim(),
         phone: document.getElementById("phone").value.trim(),
-        expendable: document.getElementById("expendable").value === "true",
-        supplier: document.getElementById("supplier").value.trim()
+        expendable: document.getElementById("expendable").value === "true"
       };
       if (!item.itemName || isNaN(item.requested)) return alert("Item name and quantity are required.");
       const newRef = push(ref(db, "inventory"));
@@ -289,13 +288,13 @@
       const newValues = {
         itemName: prompt("Item Name:", item.itemName),
         requested: parseInt(prompt("Requested Quantity:", item.requested)),
+        onHand: parseInt(prompt("On Hand Quantity:", item.onHand || 0)),
         received: parseInt(prompt("Received Quantity:", item.received || 0)),
         custodian: prompt("Custodian:", item.custodian || ""),
         location: prompt("Location:", item.location || ""),
         email: prompt("Email:", item.email || ""),
         phone: prompt("Phone:", item.phone || ""),
-        expendable: confirm("Is this item expendable? (OK for Yes, Cancel for No)"),
-        supplier: prompt("Supplier:", item.supplier || "")
+        expendable: confirm("Is this item expendable? (OK for Yes, Cancel for No)")
       };
 
       if (!newValues.itemName || isNaN(newValues.requested)) {
